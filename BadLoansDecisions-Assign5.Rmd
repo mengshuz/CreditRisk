@@ -1,0 +1,233 @@
+---
+title: "BadLoanDecisions"
+author: "Mengshu Zhang"
+date: "02-22-2023"
+output: html_document
+---
+
+## R Markdown
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+**This exercise is under construction. Please report any errors at https://forms.gle/2W4tffs4YJA1jeBv9**
+
+Goal: 
+Understand and experience decision trees regression to predict the probability of loan default (due to fraud or other reasons).
+Build skills and confidence to search for online help.
+
+Background:
+The data for this question contains information about borrowers, loans, and the outcome (defaulted or paid). We are concerned about minimize loss, and not concerned whether the default was intentional or unintentional. I developed this assignment to walk you through the process because I couldn't find any assignment at this level that can balance fundamentals and practical aspects. The data has been adapted from https://campus.datacamp.com/courses/credit-risk-modeling-in-r/ (but my approach is quite different).
+
+
+Before starting:
+1. You are not allowed to:
+   1a. Search for solutions to this assignment
+   2b. Subcontract your assignment to someone else
+2. You are allowed to:
+   2a. Search information about packages and functions you may use
+   2b. Consult with your team mates.
+
+
+Individual assignment only: 50 total points (Rmd and html solution)
+Team assignment: None
+
+## [1 point] Q1.
+Start by entering your name and today's date in Lines 3 and 4, respectively, to indicate your compliance with the Fuqua Honor Code.
+Then, run the chunk of code below by clicking on the green arrow (that points to the right) on the top right of the chunk.
+*Tip:* I numbered code chunks corresponding to their numbers. Chunk 1 specifies the knitting parameters.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## [1 point] Q2.
+Read and store the data from the file *LoanData.rds* into a variable called *loanData*.
+Then, inspect the data using 2 or more R commands.
+*Tip:* Use Google to learn about rds file format and how to read it into R. You'll likely need some libraries and packages.
+*Rubric:* 1 point for storing; 1 points each for using 2 R commands for inspecting.*
+```{r}
+#install.packages("tidyverse")
+library(dplyr)
+library(readr)
+loanData = read_rds("LoanData.rds")
+glimpse(loanData) #Glimpse is a dplyr function that is a smarter variation of str.
+summary(loanData)
+str(loanData)
+```
+
+## [1 points] Q3.
+Before running regression, run the following code to clean the data, and then generate the training (*loanTrain*) and testing (*loanTest*) data.
+```{r}
+### Do not modify this code - just run it!
+loanDataNoOutliers = loanData[!is.na(loanData$incomeAnnual) & !(2500000 < loanData$incomeAnnual), ]
+
+# All the columns have less than 10% missing values. Only two have any missing values at all. These are interestRate and employmentYears.
+isMissingInterestRate = is.na(loanDataNoOutliers$interestRate)
+isMissingEmploymentYears = is.na(loanDataNoOutliers$employmentYears)
+
+#make a copy of loanDataNoOutliers
+loanDataNoOutliersNA = loanDataNoOutliers
+
+loanDataNoOutliersNA$interestRate[isMissingInterestRate] = median(loanDataNoOutliersNA$interestRate, na.rm = TRUE)
+naInterestRate = as.integer(isMissingInterestRate) 
+loanDataNoOutliersNA = cbind(loanDataNoOutliersNA, naInterestRate)
+
+loanDataNoOutliersNA$employmentYears[isMissingEmploymentYears] = median(loanDataNoOutliersNA$employmentYears, na.rm = TRUE)
+naEmploymentYears = as.integer(isMissingEmploymentYears) 
+loanDataNoOutliersNA = cbind(loanDataNoOutliersNA, naEmploymentYears)
+
+#summary(loanDataNoOutliersNA)
+
+set.seed(2020)
+
+loanTestIndices = sample(1:nrow(loanDataNoOutliersNA), nrow(loanDataNoOutliersNA)*1/3, replace = FALSE) # replace = FALSE is not needed by R but lowers my anxiety level
+loanTest =  loanDataNoOutliersNA[loanTestIndices, ]
+loanTrain = loanDataNoOutliersNA[-loanTestIndices, ]
+
+#str(loanTest)
+#str(loanTrain)
+```
+
+## [6 points] Q4.
+Suppose an independent data aggregator is selling a new logical feature called xyz (that is 0 or 1) along with the default data for each of your cases. Use Gini to determine whether it is useful or not to purchase the feature X based on the following data:
+a. There are 1000 defaults and 8015 non-defaults cases when xyz is 1 ("left" cases).
+b. There are 2227 defaults and 17850 non-default cases when xyz is 0 ("right" cases). 
+*Tip:* I have already calculated the Gini of the root for you. 
+1. Compute the gini_left and gini_right using the getGini function already written for you.
+2. Compute the gini_gain based on the following formula:
+**gini_root - (count(left)/count(total) * gini_left) - (count(right)/count(total) * gini_right))**
+*Tip:* See BVV pp. 138-189 for an example.
+*Rubric:* 2 each point for the gini_left and gini_right, 2 points for gini_gain
+```{r}
+###Do not modify the code in the next 8 lines
+getGini = function(good, bad) {
+   total = good+bad
+   return(2*(bad/total) * (good/ total))
+}
+
+defaults = sum(loanData$isLoanDefault)
+non_defaults = sum(0 == loanData$isLoanDefault)
+
+gini_root = getGini(non_defaults,defaults)
+###Do not modify the code above this line
+
+###Add your code below this line
+gini_root <-getGini(25865,3227)
+gini_root
+gini_left <- getGini(1000,8015)
+gini_left
+gini_right <- getGini(2227,17850)
+gini_right
+gini_gain <- gini_root - (9015/29092 * gini_left) - ((20077)/(29092)*gini_right)
+gini_gain
+```
+
+## [2 points] Q5.
+Based on the gini_gain in the above section, how much value do you ascribe to the data for feature X
+```{r}
+### This section doesn't require code but feel free to reprint any critical values.
+
+```
+#The gini gain is very small, so it means the all features are important
+
+## [1 point] Q6.
+Load the package rpart to use decision trees without writing all the code.
+```{r}
+#install.packages("rpart")
+library(rpart)
+```
+
+## [1 point] Q7.
+Run the following code to use rpart to build a decision tree.
+```{r}
+###Do not modify the code in this chunk
+tree_defaults = rpart(isLoanDefault ~ ., method="class", data = loanTrain)
+```
+## [2 points] Q8.
+Run the following code to use to plot the decision tree you generated. Then, explain the results.
+*Tip:* You will likely get an error and will have to comment out this code line to knit. To explain consider what's peculiar about the distribution of fraud data.
+```{r}
+###Do not modify the code in this chunk
+#plot(tree_defaults)
+### Explain your results below...
+# The dataset is imbalanced with disproportionate amount of 0s and 1s.
+```
+
+## [5 points] Q9.
+Now, we will trick R by giving it a balanced dataset where 1/3 of the cases are default and 2/3 are are not default.
+Run the following code and then enter a comment before each line to explain what that line is doing in plain English.
+*Rubric:* 5 points for the explanation (1 for each line).
+```{r}
+###Enter comments without modifying the code in this chunk
+#get rows of loanData when isLoanDefault is 1 and assign it to loanTrain_default
+loanTrain_default = loanData[1 ==loanData$isLoanDefault, ]
+#get rows of loanData when loanTrain_nodefault is 0 and assign it to loanTrain_nodefault
+loanTrain_nodefault = loanData[0 ==loanData$isLoanDefault, ]
+#get rows of loanData when loanTrain_nodefault is 0 and assign it to loanTrain_nodefault
+loanTestIndices = sample(1:nrow(loanTrain_nodefault), 2*nrow(loanTrain_default), replace = FALSE) # replace = FALSE is not needed by R but lowers my anxiety level
+loanTrain_nodefault = loanTrain_nodefault[loanTestIndices,]
+#combine rows
+loanTrain_balanced = rbind(loanTrain_default,loanTrain_nodefault)
+```
+
+## [6 points] Q10.
+Now, call *rpart* again using *loanTrain_balanced* and also add this parameter setting to rpart *control = rpart.control(cp = 0.001)*.
+Then, plot the tree again using *plot* command.
+*Tip:* The parameter *cp* is the complexity parameter that sets the threshold value for a decrease in overall lack of fit for any split. If *cp* is not met, further splits will no longer be pursued. *cp*'s default value is 0.01, but for complex problems, it is advised to relax *cp* (to a lower value).
+*Tip:* In your call to plot set *uniform = TRUE*.
+*Rubric:* 4 points for rpart, 2 points for plot.
+```{r}
+tree_defaults_balanced = rpart(isLoanDefault ~ ., method="class", data = loanTrain_balanced,control = rpart.control(cp = 0.001)) #Add your "control" parameter code here#
+plot(tree_defaults_balanced,uniform = TRUE)
+```
+
+## [1 point] Q11.
+Now, stop and admire the beauty of what you just did for as long as you want! This is our tree and we will help it grow.
+Then, explain what was the effect of *uniform = TRUE*.
+```{r}
+### This section doesn't require code but feel free to reprint any critical values.
+```
+It makes the vertical space of the node uniform and make the tree balanced.
+Setting uniform to TRUE balances the tree for better visualization with equal-sized branches.
+## [6 points] Q12.
+Let's nurture our tree so it looks even better starting by adding the parameter *parms = list(prior = c(0.7, 0.3)*. This changes the proportion of non-defaults to 0.67, and of defaults to 0.33 (they should always sum up to 1). Also, add labels to the decision tree by entering *text(tree_defaults_balanced_parms)* in the line after the plot.
+*Tip:* Don't delete *control = rpart.control(cp = 0.001)*. 
+*Tip:* Don't worry about text readability.
+*Rubric:* 4 points for rpart, 2 points for plot with labels.
+```{r}
+tree_defaults_balanced_parms = rpart(isLoanDefault ~ ., method="class", data = loanTrain_balanced,control = rpart.control(cp = 0.001),parms = list(prior = c(0.67, 0.33)))
+plot(tree_defaults_balanced_parms,uniform = TRUE)
+text(tree_defaults_balanced_parms)
+```
+
+
+## [6 points] Q13.
+Let's continue to nurture our tree by including a loss matrix. You can do this by adding the following to the parms: *parms = list(loss = matrix(c(0, M, 1, 0), ncol = 2))*, where M is greater than 1. (This means an actual 1, predicted as 0 (i.e., a false negative) costs M times more that a false positive!) Choose an M that helps you improve the tree. Store the result in *tree_defaults_balanced_parms_lossmatrix*.
+*Tip:* Your parms parameter will now look like this: *parms = list(loss = matrix(c(0, M, 1, 0), ncol = 2), prior = c(0.67, 0.33))*.
+*Tip:* The loss matrix changes the relative importance of misclassification of a default as a non-default versus a non-default as a default. We are stressing that misclassifying a default as a non-default should be penalized more heavily. Including a loss matrix can again be done in the argument parms in the loss matrix: *parms = list(loss = matrix(c(0, cost_def_as_nondef, cost_nondef_as_def, 0), ncol=2))*. This constructs a 2x2-matrix with zeroes on the diagonal and changed loss penalties off-diagonal (by making the second parameter is higher). The default loss matrix is all ones off-diagonal, i.e, *c(0, 1, 1, 0))*. I suggest choosing something more than 5 for sure.
+Also, add *cex* parameter to the plot to scale the text size. text(tree_defaults_balanced_parms, cex = 0.25)
+*Rubric:* 4 points for rpart, 2 points for the plot.
+```{r}
+tree_defaults_balanced_parms_lossmatrix = rpart(isLoanDefault ~ ., method="class", data = loanTrain_balanced,control = rpart.control(cp = 0.001),parms = list(loss = matrix(c(0, 2, 1, 0), ncol = 2)))
+plot(tree_defaults_balanced_parms_lossmatrix,uniform = TRUE)
+text(tree_defaults_balanced_parms_lossmatrix,cex = 0.25)
+```
+
+## [6 points] Q14.
+Now, *prune* the *tree_defaults_balanced_parms_lossmatrix* tree using *prune* with a parameter between *0.001* and *0.004* and store the result in *tree_lovely*.
+Then, plot *tree_lovely* with text.
+*Tip:* Lots of work went into giving you that range. Don't worry about that. Just choose a value that looks good to you.
+*Rubric:* 4 points for prune, 2 points for the plot.
+```{r}
+tree_lovely = prune(tree_defaults_balanced_parms_lossmatrix, cp = 0.003)
+plot(tree_lovely)
+text(tree_defaults_balanced_parms, cex = 0.5)
+```
+
+## [5 points] Q15. 
+Knit to html after eliminating all the errors. Submit both the Rmd and html files.
+Tip: Do not worry about minor formatting issues.*
+Tip: This will take some time as you are processing medium size data sets.
+```{r}
+### This section doesn't require code. Just knit and submit the Rmd and html files.### 
+```
+
+
